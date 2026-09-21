@@ -1,0 +1,14 @@
+{
+  "name": "dotclaude",
+  "owner": {
+    "name": "Gaius"
+  },
+  "description": "Gaius's Claude Code skills",
+  "plugins": [
+    {
+      "name": "dotclaude",
+      "source": "./",
+      "description": "Gaius's Claude Code skills"
+    }
+  ]
+}

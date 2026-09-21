@@ -1,0 +1,10 @@
+{
+  "name": "dotclaude",
+  "version": "0.1.0",
+  "description": "Gaius's Claude Code skills",
+  "author": {
+    "name": "Gaius"
+  },
+  "repository": "https://github.com/gaius-qi/dotclaude",
+  "license": "MIT"
+}

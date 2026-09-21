@@ -1,0 +1,83 @@
+{
+ "skill_name": "drawio-diagram",
+ "evals": [
+  {
+   "id": 0,
+   "prompt": "画一个容器镜像拉取的数据流图：Node 上的 containerd 拉镜像，经 Dragonfly P2P 加速层到 Harbor Registry，Harbor 后端是对象存储 TOS，manifest 走 Redis 缓存。分层展示 Node / 加速层 / Registry / 存储，输出 drawio 和 png 到当前目录。",
+   "expected_output": "一个 .drawio 和一个 .png，分层布局，白底黑边淡色填充，直线开放式箭头",
+   "files": [],
+   "assertions": [
+    "drawio 和 png 都产出",
+    "填充色只用 perf-tools 调色板",
+    "所有描边为黑色",
+    "描边 1.5px 或 1px",
+    "箭头是开放式 V 形 (endArrow=open, endFill=0)",
+    "箭头不用 orthogonalEdgeStyle 自动折线",
+    "填充色不超过 5 种（不含注释框）",
+    "无阴影/渐变"
+   ]
+  },
+  {
+   "id": 1,
+   "prompt": "帮我画一下 K8s Pod 网络示意图：一个 Pod 里两个容器共享 network namespace，通过 veth pair 连到 Node 的 cni0 bridge，再经 eth0 出到集群网络。用 draw.io 画，风格简洁。",
+   "expected_output": "一个 .drawio 和一个 .png，Pod / Node / 集群网络分层，虚线容器表示 Pod 和 Node 边界",
+   "files": [],
+   "assertions": [
+    "drawio 和 png 都产出",
+    "填充色只用 perf-tools 调色板",
+    "所有描边为黑色",
+    "描边 1.5px 或 1px",
+    "箭头是开放式 V 形 (endArrow=open, endFill=0)",
+    "箭头不用 orthogonalEdgeStyle 自动折线",
+    "填充色不超过 5 种（不含注释框）",
+    "无阴影/渐变"
+   ]
+  },
+  {
+   "id": 2,
+   "prompt": "画一个时序图：用户在浏览器点登录，前端调 API Gateway，Gateway 调 Auth Service 校验密码，Auth Service 查 MySQL 并写 Redis session，最后返回 token 给前端。",
+   "expected_output": "时序图 .drawio + .png，5 个参与者，同步实线、返回虚线",
+   "assertions": [
+    "drawio 和 png 都产出",
+    "填充色只用 perf-tools 调色板",
+    "所有描边为黑色",
+    "描边 1.5px 或 1px",
+    "箭头是开放式 V 形 (endArrow=open, endFill=0)",
+    "箭头不用 orthogonalEdgeStyle 自动折线",
+    "填充色不超过 5 种（不含注释框）",
+    "无阴影/渐变"
+   ]
+  },
+  {
+   "id": 3,
+   "prompt": "帮我画一下 CI 发布流程图：提交代码 → 跑单测 → 通过？否则通知开发者；通过后构建镜像 → 推 Harbor → 灰度发布 → 健康检查通过？否则回滚；通过后全量发布。",
+   "expected_output": "流程图 .drawio + .png，判断节点带 是/否 标签，回环边不穿盒子",
+   "assertions": [
+    "drawio 和 png 都产出",
+    "填充色只用 perf-tools 调色板",
+    "所有描边为黑色",
+    "描边 1.5px 或 1px",
+    "箭头是开放式 V 形 (endArrow=open, endFill=0)",
+    "箭头不用 orthogonalEdgeStyle 自动折线",
+    "填充色不超过 5 种（不含注释框）",
+    "无阴影/渐变"
+   ]
+  },
+  {
+   "id": 4,
+   "prompt": "Draw the ext4 on-disk layout in English: boot block, block groups, and inside one block group the superblock, group descriptors, block/inode bitmaps, inode table and data blocks. Show how an inode number maps to its byte offset.",
+   "expected_output": "Layout diagram: top strip of the image, brace zoom into one block group, an addressing formula row; all text in English; ≤5 fill colours",
+   "assertions": [
+    "drawio 和 png 都产出",
+    "填充色只用 perf-tools 调色板",
+    "所有描边为黑色",
+    "描边 1.5px 或 1px",
+    "箭头是开放式 V 形 (endArrow=open, endFill=0)",
+    "箭头不用 orthogonalEdgeStyle 自动折线",
+    "填充色不超过 5 种（不含注释框）",
+    "无阴影/渐变",
+    "图内没有中文字符"
+   ]
+  }
+ ]
+}
