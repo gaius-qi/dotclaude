@@ -38,9 +38,8 @@ client/
 - **Decide placement by asking:** does it need `Error`/`Result` only → `core`. Is it a pure helper with no daemon state → `util/<topic>/mod.rs`. Is it config for a binary → `config/<binary>.rs`. Does it talk to a remote → `backend/<protocol>.rs` or `client/src/grpc/<service>.rs`. Otherwise it belongs to the daemon in `dragonfly-client/src/<module>/`.
 - Modules are directories with `mod.rs` (`storage_engine/mod.rs`, `storage_engine/rocksdb.rs`). This codebase does not use the `foo.rs` + `foo/` style. Don't introduce it.
 - `lib.rs` is a list of `pub mod` lines plus at most a few `pub use`/`pub type` re-exports (`pub type Error = error::DFError;`). No logic in `lib.rs`.
-- Every member `Cargo.toml` inherits `version`, `edition`, `license`, `repository` etc. from `[workspace.package]` and takes dependencies from `[workspace.dependencies]` with `{ workspace = true }`. Add a dependency to the workspace table once; pin exact versions for `dragonfly-api` and sibling crates.
+- Every member `Cargo.toml` inherits `version`, `edition`, `license`, `repository` from `[workspace.package]` and takes dependencies from `[workspace.dependencies]` with `{ workspace = true }`. Version policy: `idioms.md` Dependencies.
 - Sibling crates depend by path and version: `dragonfly-client-core = { path = "dragonfly-client-core", version = "1.5.6" }` in the workspace table.
-- Unit tests live in each file's `#[cfg(test)] mod tests`. There is no `tests/` directory; end-to-end lives in the Go repo's `test/e2e`.
 - Binary-specific config paths and defaults live in the config crate, not in `main.rs`. `main.rs` reads `Args`, loads `Config`, wires, runs.
 - Platform variants: separate files (`content_linux.rs`, `content_macos.rs`) selected by `#[cfg(target_os)]` in `mod.rs`, not `cfg` blocks scattered inside functions.
 - Plugin examples ship under the crate they extend: `dragonfly-client-backend/examples/plugin/` is a workspace member.

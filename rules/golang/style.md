@@ -5,7 +5,7 @@ paths:
 
 # Go style
 
-Reference codebase: [dragonflyoss/dragonfly](https://github.com/dragonflyoss/dragonfly) (`scheduler/`, `manager/`, `pkg/`). Community guides where it doesn't contradict: [Uber Go Style](https://github.com/uber-go/guide/blob/master/style.md), [Google Go Style](https://google.github.io/styleguide/go/decisions). When they disagree, dragonfly wins.
+Reference codebase: [dragonflyoss/dragonfly](https://github.com/dragonflyoss/dragonfly) (`scheduler/`, `manager/`, `pkg/`). Community guides where they don't contradict: [Uber Go Style](https://github.com/uber-go/guide/blob/master/style.md), [Google Go Style](https://google.github.io/styleguide/go/decisions). When they disagree, dragonfly wins. This file is file shape, formatting, config, logging, command wiring and tooling. Names: `naming.md`. Comments: `comments.md`. Language constructs: `idioms.md`.
 
 ## File skeleton
 
@@ -35,33 +35,12 @@ import (
 )
 ```
 
-- Apache 2.0 block-comment header on every `.go` file. `//go:generate` sits between header and `package`.
+- Apache 2.0 block-comment header on every `.go` file, then directives, then `package`.
 - Imports in four `gci` groups: stdlib, third party, `d7y.io/api`, this module. Alias only for collisions or clarity: `logger`, `pkggc`, `commonv2`, `schedulerv2`, `managerclient`.
-- Every type, func, method, const, and struct field has a doc comment. Full sentence, starts with the name, ends with a period. Interface methods are documented; the implementation repeats the same comment.
-- Struct fields: one comment per field, blank line between fields.
-- Function bodies use short step comments before each block: `// Initialize logger.`, `// Validate config.`
 
-## Interface, implementation, constructor
+## Formatting
 
 ```go
-// HostManager is the interface used for host manager.
-type HostManager interface {
-	// Load returns host for a key.
-	Load(string) (*Host, bool)
-
-	// Store sets host.
-	Store(*Host)
-}
-
-// hostManager contains content for host manager.
-type hostManager struct {
-	// all host map.
-	*sync.Map
-
-	// seeds host map.
-	seeds *sync.Map
-}
-
 // New host manager interface.
 func newHostManager(cfg *config.GCConfig, gc pkggc.GC) (HostManager, error) {
 	h := &hostManager{Map: &sync.Map{}, seeds: &sync.Map{}}
@@ -73,52 +52,34 @@ func newHostManager(cfg *config.GCConfig, gc pkggc.GC) (HostManager, error) {
 }
 ```
 
-- Exported interface `HostManager`, unexported struct `hostManager`, constructor returns the interface. Package-level entry point is `New(...)`; secondary types use `newXxx`.
-- Every interface gets a mockgen mock: `x_mock.go` in the same package, or `mocks/x_mock.go` with `-package mocks` for `pkg/` and `internal/` libraries.
-- Receiver is the first letter of the type (`h`, `m`, `s`, `p`, `t`, `v`), consistent across the file.
-- Constructors with many params break the signature across lines, grouped by type: `id, ip, name, hostname string, port, downloadPort, proxyPort int32,`.
-- Struct literals name every field, aligned. Atomic counters are `new(atomic.Uint64)`.
-- Blank line before a final `return` when the function body has more than one block.
+- `gofmt` output, tabs. Struct literals name every field, aligned, one per line when more than two.
+- Long signatures break across lines grouped by type: `id, ip, name, hostname string, port, downloadPort, proxyPort int32,`.
+- Blank line before a final `return` when the body has more than one block. Blank line between struct fields and between interface methods.
 
-## Options, enums, config
+## Config
 
 ```go
-type Option func(d *dfpath)
-
-// WithLogDir set the log directory.
-func WithLogDir(dir string) Option {
-	return func(d *dfpath) { d.logDir = dir }
+// Config is the scheduler config.
+type Config struct {
+	// Server port.
+	Port int `yaml:"port" mapstructure:"port"`
 }
-
-func New(options ...Option) (Dfpath, error)
 ```
 
-```go
-const (
-	// HostTypeNormal is the normal type of host.
-	HostTypeNormal HostType = iota
+- One `Config` per component in `<component>/config/config.go`. Every field has `yaml:"camelCase" mapstructure:"camelCase"` tags. Defaults are `Default*` constants applied in `config.New()`. `Validate() error` and `Convert() error` are methods on `*Config`.
+- YAML templates in `deploy/docker-compose/template/*.yaml` mirror the struct: camelCase keys, `# Comment.` above every key, disabled options kept as `# # comment` / `# key: value`, empty strings as `''`.
 
-	// HostTypeSuperSeed is the super seed type of host.
-	HostTypeSuperSeed
-)
-```
+## Logging
 
-- Functional options: `type Option func(*T)`, `WithXxx`, variadic `options ...Option` last. Type-specific options are `HostOption`, `PeerOption`.
-- Enums: typed `int` with `iota`, each constant documented. String names live in a sibling `const` block as `HostTypeNormalName = "normal"`.
-- Config structs live in `<component>/config/config.go`. Every field has `yaml:"camelCase" mapstructure:"camelCase"` tags and a comment. Defaults are `Default*` constants, applied in `config.New()`. `Validate() error` and `Convert() error` are methods on `*Config`.
-- Config YAML templates (`deploy/docker-compose/template/*.yaml`) mirror the struct: camelCase keys, `# Comment.` above every key, disabled options kept as `# # comment` / `# key: value`, empty strings as `''`.
+- Import `logger "d7y.io/dragonfly/v2/internal/dflog"`. Plain: `logger.Infof`, `logger.Warnf`, `logger.Errorf`. Contextual: `logger.WithTaskID(id)`, `logger.WithPeer(...)`, `logger.WithHostID(...)`, `logger.WithHostnameAndIP(...)`. Messages lowercase, no trailing period.
+- `context.Context` is the first parameter, named `ctx`.
 
-## Logging and runtime
+## Commands
 
-- Import `logger "d7y.io/dragonfly/v2/internal/dflog"`. Plain: `logger.Infof`, `logger.Errorf`, `logger.Warnf`. Contextual: `logger.WithTaskID(id).Infof(...)`, `logger.WithPeer(...)`, `logger.WithHostID(...)`, `logger.WithHostnameAndIP(...)`. Messages lowercase, no trailing period.
-- `context.Context` first, named `ctx`. `ctx, cancel := context.WithCancel(...)` followed immediately by `defer cancel()`.
-- Long-running loops guard with `select { case <-ctx.Done(): return ctx.Err() default: }` at the top.
-- Concurrent maps are `sync.Map` (embedded or as a field). Counters are typed `atomic.*`. Singletons use `sync.Once` (`cache.Do`).
-- `init()` only in `cmd/<bin>/cmd/root.go` to wire cobra flags and `dependency.InitCommandAndConfig`. Nowhere else.
-- Commands: `main.go` is three lines calling `cmd.Execute()`. `root.go` `RunE` does Convert → Validate → init dfpath → init logger → `runXxx(ctx, ...)`. `os.Exit(1)` only in `Execute()`.
+- `cmd/<bin>/main.go` is three lines calling `cmd.Execute()`. `cmd/<bin>/cmd/root.go` holds the cobra command; `RunE` runs Convert → Validate → init dfpath → init logger → `runXxx(ctx, ...)`. `init()` there registers flags and calls `dependency.InitCommandAndConfig`.
 
 ## Tooling
 
-- `make fmt vet lint test` before finishing. `.golangci.yml` v2: `errcheck`, `goconst`, `gocyclo`, `govet`, `misspell`, `staticcheck`; formatters `gci` + `gofmt`.
-- `make generate` after changing any interface with a `//go:generate mockgen` line.
-- Prefer stdlib. Dragonfly's existing deps first: `cobra`/`viper`, `zap` via `dflog`, `grpc`/`status`, `testify`, `go.uber.org/mock`, `google/uuid`, `gorm`, `gin`, `redis`. Add nothing new without a reason.
+- `make fmt vet lint test` before finishing. `.golangci.yml` v2 enables `errcheck`, `goconst`, `gocyclo`, `govet`, `misspell`, `staticcheck`; formatters `gci` and `gofmt`.
+- `make generate` after changing any interface that has a `//go:generate mockgen` line. `make swag` after changing a `manager/handlers` annotation.
+- Dependency policy: `performance.md`, Technology selection.

@@ -29,5 +29,5 @@ Reference: [dragonflyoss/client](https://github.com/dragonflyoss/client), then [
 - Constructors: `new(config: Arc<Config>, ...)`, `with_capacity`, `from_str`. Async open-style constructors: `open(dir, log_dir, ...)`.
 - Iterator types match their method (`Iter`, `IterMut`, `IntoIter`). Collections implement `iter()`, `len()`, `is_empty()`.
 - Cargo features are additive nouns with no filler: `serde`, `std`. Never `use-xxx`, `with-xxx`, `no-xxx`.
-- Tests: behaviour sentences in `snake_case`, no `test_` prefix: `is_blob_url_matches_oci_blob_urls`, `recv_returns_after_trigger`, `acquire_sheds_only_when_in_flight_exceeds_the_estimated_limit`.
+- Tests: behaviour sentences in `snake_case`, no `test_` prefix: `is_blob_url_matches_oci_blob_urls`, `recv_returns_after_trigger`. Criterion benches: the operation, `lru_cache_put`, `lru_cache_get`.
 - Variables: `config`, `args`, `err`, `task_id`, `piece_id`, `dir`, `log_dir`, `request`/`response`, `tx`/`rx` for channel halves.

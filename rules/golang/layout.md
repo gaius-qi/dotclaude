@@ -43,11 +43,9 @@ repo/
 └── go.mod                        # module d7y.io/dragonfly/v2
 ```
 
-- **Decide placement by asking:** deployable-specific → `<component>/<pkg>/`. Shared but Dragonfly-only → `internal/`. Generic and import-safe → `pkg/`. Never a top-level `util`, `common`, `helpers`.
-- One package per directory, package name equals directory name. Component root file (`scheduler/scheduler.go`) owns `Server`, `New`, `Serve`, `Stop`.
-- Domain packages split by entity: `host.go`, `host_manager.go`, `peer.go`, `peer_manager.go`, `task.go`, `task_manager.go`. Each `x.go` has `x_test.go` and, when it declares an interface, `x_mock.go` beside it.
-- `pkg/` and `internal/` libraries put mocks in a `mocks/` subpackage instead (`pkg/dfpath/mocks/`).
-- Config per component in `<component>/config/config.go` with `testdata/*.yaml` fixtures. YAML templates for deployment live in `deploy/docker-compose/template/`.
-- Generated code: `//go:generate` at the top of the source file, regenerated with `make generate`. Swagger via `make swag`.
-- Don't add `src/`, `lib/`, `models/` at the root. `manager/models/` exists only because gorm models are a manager concern.
-- Tests sit next to code. Cross-binary e2e goes in `test/e2e/` with ginkgo + gomega.
+- **Placement:** deployable-specific → `<component>/<pkg>/`. Shared but Dragonfly-only → `internal/`. Generic and import-safe → `pkg/`. Never a top-level `util`, `common`, `helpers`.
+- One package per directory, package name equals directory name. The component root file (`scheduler/scheduler.go`) owns `Server`, `New`, `Serve`, `Stop`.
+- Domain packages split by entity: `host.go`, `host_manager.go`, `peer.go`, `peer_manager.go`. Each `x.go` has `x_test.go` beside it and, when it declares an interface, `x_mock.go` in the same package. `pkg/` and `internal/` libraries put mocks in a `mocks/` subpackage instead (`pkg/dfpath/mocks/`).
+- Config per component in `<component>/config/config.go` with `testdata/*.yaml` fixtures. Deployment YAML templates in `deploy/docker-compose/template/`.
+- Cross-binary e2e in `test/e2e/` with ginkgo and gomega; e2e fixtures in `test/testdata/`.
+- No `src/`, `lib/` or `models/` at the root. `manager/models/` exists only because gorm models are a manager concern.
