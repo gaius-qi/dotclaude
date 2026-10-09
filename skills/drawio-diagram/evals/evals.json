@@ -78,6 +78,38 @@
     "无阴影/渐变",
     "图内没有中文字符"
    ]
+  },
+  {
+   "id": 5,
+   "prompt": "画一张 nydus 按需读取经 Dragonfly 取 blob 的全链路图：nydusd 里一个 blob 分成若干 chunk group，read() miss 后按 fetch_size 窗口发 GET Range 给同进程的 Dragonfly SDK，SDK 用 hashring 选两个 seed peer 副本，seed peer 按 piece 存储、本地没有就回源 Registry。两个面板（nydusd / seed peer），格子表示 chunk group 和 piece，灰色表示还没取到的。",
+   "expected_output": "一张全链路图 .drawio + .png：虚线面板、填色层块、方形格子、云形 Registry、平行四边形请求，Avenir 字体",
+   "files": [],
+   "assertions": [
+    "drawio 和 png 都产出",
+    "填充色只用 perf-tools 调色板",
+    "所有描边为黑色",
+    "描边 1.5px 或 1px",
+    "箭头是开放式 V 形 (endArrow=open, endFill=0)",
+    "箭头不用 orthogonalEdgeStyle 自动折线",
+    "填充色不超过 5 种（不含注释框）",
+    "无阴影/渐变"
+   ]
+  },
+  {
+   "id": 6,
+   "prompt": "帮我画一下 nydus 请求 Dragonfly 的重试策略：prefetch 路径 max_retries 0，失败就等 6h–12h 再试同一个 seed peer；on-demand 路径 max_retries 1 换 seed peer，再 http.max_retries 3 对 origin 指数退避，最后 EIO。用格子表示每次尝试。",
+   "expected_output": "一张重试预算图 .drawio + .png：两条 lane，触发 pill → 请求 → 尝试格子，花括号写预算来源",
+   "files": [],
+   "assertions": [
+    "drawio 和 png 都产出",
+    "填充色只用 perf-tools 调色板",
+    "所有描边为黑色",
+    "描边 1.5px 或 1px",
+    "箭头是开放式 V 形 (endArrow=open, endFill=0)",
+    "箭头不用 orthogonalEdgeStyle 自动折线",
+    "填充色不超过 5 种（不含注释框）",
+    "无阴影/渐变"
+   ]
   }
  ]
 }

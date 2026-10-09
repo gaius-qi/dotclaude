@@ -1,10 +1,15 @@
-"""Minimal draw.io XML builder in the house style.
-from dio import Diagram; d = Diagram(); a = d.box('T', 0,0,200,60,'blue', sub='desc'); d.edge(a, b, label='x'); d.save('x.drawio'); Diagram.export('x.drawio','x.png')
-Diagram(font='avenir') swaps Trebuchet/Courier for Avenir Next/Menlo; Diagram(math=True) turns on MathJax for formula().
+"""Minimal draw.io XML builder in the house style. Every style constant lives here; gen scripts never hand-write style strings.
+
+from dio import Diagram, ABOVE, ang
+d = Diagram()                                  # Diagram(font='avenir') Avenir Next + Menlo · Diagram(math=True) MathJax for formula()
+a = d.box('Superblock', 280, 265, 150, 70, 'orange', sub='@1024 · 128 B')
+d.elbow(field, a, 145, '× 4 KiB')              # ⊐ bend at y=145, label above its own horizontal run
+d.out(OUT, 'name')                             # name.drawio + name.png (2x) next to the script
 """
 import html, os, shutil, subprocess
 
 INK = '#000000'                                              # text, strokes, arrows (Gregg: black on pastel)
+FAINT = '#BBBBBB'                                            # the one non-black stroke: minor ruler ticks
 # Palette lifted from Brendan Gregg's Linux perf tools diagram. Colour = subsystem family, not decoration.
 FILL = {
     'blue': '#CBDCFD', 'blue-bg': '#E6EDFC', 'blue-strong': '#99B9FB',      # storage / filesystem / data path
@@ -15,7 +20,7 @@ FILL = {
     'grey': '#F5F5F5',                                                      # neutral: start/end, hole, pending, unused
 }
 NOTE_FILL = {'grey': '#F5F5F5', 'green': '#E8F8E9', 'pink': '#FFF0F0'}     # observability / static-config / tracing
-LIGHT = '#FFFFFF'
+BG_FILLS = {v for k, v in FILL.items() if k.endswith('-bg')} | set(NOTE_FILL.values()) | {'#FFFFFF'}   # not counted in the 5-fill budget
 MONO = 'Courier New, Menlo, monospace'
 SANS = 'Trebuchet MS, Helvetica Neue, PingFang SC, sans-serif'
 FONTS = {'trebuchet': (SANS, MONO), 'avenir': ('Avenir Next, PingFang SC, sans-serif', 'Menlo, PingFang SC, monospace')}
@@ -45,17 +50,28 @@ NOTE = f'rounded=0;whiteSpace=wrap;html=1;dashed=1;dashPattern=1 3;fixDash=1;str
 EDGE = f'html=1;endArrow=open;endFill=0;endSize=8;labelBackgroundColor=none;strokeColor={INK};strokeWidth=1.5;fontColor={INK};fontSize=13;' + FAMILY
 DOTTED = f'html=1;endArrow=none;dashed=1;dashPattern=1 3;fixDash=1;strokeColor={INK};strokeWidth=1;'
 BRACE = 'shape=curlyBracket;rounded=1;html=1;fillColor=none;' + STROKE
+RING = f'ellipse;html=1;dashed=1;dashPattern=4 4;fixDash=1;strokeWidth=1.5;strokeColor={INK};'
+SEQ = 'verticalAlign=bottom;labelBackgroundColor=#FFFFFF;'   # sequence message label: sits on the line, masks lifelines it crosses
+# Edge label placement kwargs: d.edge(a, b, (1,.5), (0,.5), 'x', **ABOVE)
+ABOVE = dict(offset=(0, -6), lstyle='verticalAlign=bottom;')
+BELOW = dict(offset=(0, 6), lstyle='verticalAlign=top;')
 
 def esc(s): return html.escape(str(s), quote=True).replace('\n', '&lt;br&gt;')
+def ang(s): return str(s).replace('<', '&lt;').replace('>', '&gt;')
+"""Escape literal angle brackets in a label (<hex>.blob.data, <task_id>) while keeping the label HTML."""
 
 class Diagram:
     def __init__(self, font='trebuchet', math=False):
-        self.cells, self.n, self.font, self.math = [], 0, font, math
+        self.cells, self.n, self.font, self.math, self.geo = [], 0, font, math, {}
     def _id(self): self.n += 1; return f'c{self.n}'
     def _v(self, label, style, x, y, w, h, id=None):
         id = id or self._id()
+        self.geo[id] = (x, y, w, h)
         self.cells.append(f'<mxCell id="{id}" value="{esc(label)}" style="{style}" vertex="1" parent="1"><mxGeometry x="{x:g}" y="{y:g}" width="{w:g}" height="{h:g}" as="geometry"/></mxCell>')
         return id
+    def at(self, id, fx, fy):
+        """Absolute point at fraction (fx, fy) of a vertex: at(b, .5, 1) = bottom centre."""
+        x, y, w, h = self.geo[id]; return x + fx * w, y + fy * h
     @staticmethod
     def _label(title, sub, bold):
         """Component name bold (it is the thing the reader scans for); subtitle smaller italic."""
@@ -63,10 +79,25 @@ class Diagram:
         return f'{t}<br><i><font style="font-size:12px">{sub}</font></i>' if sub else t
     def _fillstyle(self, fill):
         return f'fillColor={FILL.get(fill, fill)};'
-    def box(self, title, x, y, w, h, fill='blue', sub='', bold=True, shape=None, mono=False, size=None, id=None, style=''):
-        """shape: key of SHAPE (sq/cloud/doc/io/cyl/hex/proc/step/oval), default round box. mono: identifier text (fd 7, c4, req 41)."""
-        st = BOX + self._fillstyle(fill) + (SHAPE[shape] if shape else '') + (f'fontFamily={MONO};' if mono else '') + (f'fontSize={size};' if size else '') + style
+    # ---- vertices ----
+    def box(self, title, x, y, w, h, fill='blue', sub='', bold=True, shape=None, mono=False, size=None, align=None, id=None, style=''):
+        """shape: key of SHAPE (sq/cloud/doc/io/cyl/hex/proc/step/oval), default round box. mono: identifier text (fd 7, c4, req 41).
+        align='left': label hugs the left edge so a smaller cell can sit inside the box on the right."""
+        st = BOX + self._fillstyle(fill) + (SHAPE[shape] if shape else '') + (f'fontFamily={MONO};' if mono else '') + (f'fontSize={size};' if size else '') + (f'align={align};spacingLeft=8;' if align else '') + style
         return self._v(self._label(title, sub, bold), st, x, y, w, h, id)
+    def cell(self, label, x, y, w, h, fill='blue', sub='', size=12, id=None, style=''):
+        """Square monospace data cell: piece, slot, fd, req, byte range. grey = absent, family = present, -strong = traced."""
+        return self.box(label, x, y, w, h, fill, sub=sub, bold=False, shape='sq', mono=True, size=size, id=id, style=style)
+    def row(self, y, items, x=170, h=60, fill='yellow', gap=10, bold=False):
+        """A row of field / entry boxes left to right: items = (title, sub, w) or (title, sub, w, fill). Returns ids."""
+        ids = []
+        for it in items:
+            t, s, w = it[:3]; f = it[3] if len(it) > 3 else fill
+            ids.append(self.box(t, x, y, w, h, f, sub=s, bold=bold)); x += w + gap
+        return ids
+    def rowlabel(self, label, y, h=60, w=130, size=14):
+        """Bold row label in the left column (x=20) of a layout figure; '\\n' for two lines."""
+        return self.text(label, 20, y, w, h, bold=True, size=size)
     def pill(self, label, x, y, w, h, fill='grey', id=None):
         return self._v(label, PILL + self._fillstyle(fill), x, y, w, h, id)
     def rhombus(self, label, x, y, w, h, fill='yellow', id=None):
@@ -75,24 +106,28 @@ class Diagram:
         """Dashed boundary (default) or solid box outline. No fill."""
         st = (BOX + 'fillColor=none;' if solid else FRAME) + (TITLE if label else '')
         return self._v(label, st, x, y, w, h, id)
-    def panel(self, x, y, w, h, title='', sub='', bottom=False):
-        """System / phase boundary: dashed frame + bold 16px title floating at its top-left (bottom-left when arrows enter from above)."""
+    def panel(self, x, y, w, h, title='', sub='', bottom=False, size=16):
+        """System / process / phase boundary: dashed frame + bold title floating at its top-left (bottom-left when arrows
+        enter from above). size=16 for a top-level panel, 14 for one nested inside another (a Node inside a cluster)."""
         f = self.frame(x, y, w, h)
         if title:
-            self.text(f'<b>{title}</b>' + (f' · <i>{sub}</i>' if sub else ''), x + 10, (y + h - 32) if bottom else (y + 6), max(400, w - 40), 26, size=16, align='left')
+            self.text(f'<b>{title}</b>' + (f' · <i>{sub}</i>' if sub else ''), x + 10, (y + h - 32) if bottom else (y + 6), max(400, w - 40), 26, size=size, align='left')
         return f
     def group(self, x, y, w, h, label='', fill='blue-bg', id=None):
-        """Filled, borderless background block (layer / subsystem / table), Gregg-style. Put same-family boxes inside."""
+        """Filled, borderless background block (layer / data object / table), Gregg-style. Put same-family boxes inside."""
         return self._v(label, GROUP + f'fillColor={FILL.get(fill, fill)};' + (TITLE if label else ''), x, y, w, h, id)
     def note(self, text, x, y, w, h, kind='grey', id=None):
         """Dotted annotation box, monospace bold: commands, tool names, config keys.
         kind: 'grey' observability/commands, 'green' static config/files, 'pink' tracing/debug."""
-        text = text.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')   # commands often contain <arg>; keep them literal under html=1
-        return self._v(text, NOTE + f'fillColor={NOTE_FILL[kind]};', x, y, w, h, id)
+        return self._v(ang(text.replace('&', '&amp;')), NOTE + f'fillColor={NOTE_FILL[kind]};', x, y, w, h, id)   # commands contain <arg>: keep literal
+    @staticmethod
+    def code(s):
+        """Inline monospace span inside a text() label: a path or identifier in running text."""
+        return f'<font face="{MONO}">{s}</font>'
     def text(self, label, x, y, w, h, bold=False, size=14, align='center', id=None):
         return self._v(label, TEXT + ('fontStyle=1;' if bold else '') + f'fontSize={size};align={align};', x, y, w, h, id)
     def formula(self, tex, x, y, w, h, fill='yellow-bg', size=14, id=None):
-        """MathJax block, needs Diagram(math=True). tex without the \\( \\) delimiters. fill=None: bare text, no block."""
+        """MathJax block, needs Diagram(math=True). tex without the \\( \\) delimiters. fill=None: bare formula, no block."""
         st = f'whiteSpace=wrap;html=1;fontColor={INK};fontSize={size};'          # no fontFamily: MathJax brings its own
         st += f'rounded=1;arcSize=10;strokeColor=none;fillColor={FILL.get(fill, fill)};' if fill else 'text;align=center;verticalAlign=middle;strokeColor=none;fillColor=none;'
         return self._v(f'\\({tex}\\)', st, x, y, w, h, id)
@@ -103,12 +138,19 @@ class Diagram:
         """Proportion bar: solid outline, right part filled to frac (idle bandwidth, usage, progress)."""
         self.frame(x, y, w, h, solid=True)
         return self.box('', x + w - frac * w, y, frac * w, h, fill, shape='sq')
-    def brace(self, x1, x2, yc, up=True):
-        """Horizontal curly brace spanning [x1,x2], centered on yc. up=True: tip points up."""
+    def ring(self, cx, cy, r, fill='green-bg'):
+        """Dashed circle for a hashring; pin the node boxes on its rim."""
+        return self._v('', RING + f'fillColor={FILL.get(fill, fill)};', cx - r, cy - r, 2 * r, 2 * r)
+    def brace(self, x1, x2, yc, up=True, label='', size=13, align='left'):
+        """Horizontal curly brace spanning [x1,x2], centred on yc; up=True: tip points up (zoom into the thing above).
+        label: caption on the open side (below for up, above for down), left-aligned, 13px."""
         L = x2 - x1
-        return self._v('', BRACE + f'rotation={90 if up else -90};', (x1 + x2) / 2 - 10, yc - L / 2, 20, L)
-    def _edge_style(self, both, dashed, arrow, bold, lstyle):
-        st = EDGE
+        b = self._v('', BRACE + f'rotation={90 if up else -90};', (x1 + x2) / 2 - 10, yc - L / 2, 20, L)
+        if label: self.text(label, x1, yc + 18 if up else yc - 42, L, 24, size=size, align=align)
+        return b
+    # ---- edges ----
+    def _edge_style(self, both, dashed, arrow, bold, lstyle, rounded=False):
+        st = EDGE + ('rounded=1;arcSize=20;' if rounded else '')   # rounded: long detour lines bend softly
         if not arrow: st = st.replace('endArrow=open;', 'endArrow=none;')
         if both: st += 'startArrow=open;startFill=0;startSize=8;'
         if dashed: st += 'dashed=1;dashPattern=4 4;fixDash=1;'
@@ -120,28 +162,51 @@ class Diagram:
         if points: inner += '<Array as="points">' + ''.join(f'<mxPoint x="{px:g}" y="{py:g}"/>' for px, py in points) + '</Array>'
         return f'<mxGeometry x="{pos}" relative="1" as="geometry">{inner}</mxGeometry>'
     def edge(self, src, dst, exit=(0.5, 1), entry=(0.5, 0), label='', both=False, dashed=False, arrow=True,
-             bold=False, pos=0, offset=(0, 0), points=None, lstyle='', id=None):
+             bold=False, pos=0, offset=(0, 0), points=None, lstyle='', rounded=False, id=None):
         """Edge between cells. exit/entry = (x,y) fractions on the box; align them so the line is straight.
         Label: pos in [-1,1] slides it along the edge (0 = midpoint), offset = pixel shift. Keep labels in the
         gap between shapes, never on a border."""
-        st = self._edge_style(both, dashed, arrow, bold, lstyle) + f'exitX={exit[0]};exitY={exit[1]};entryX={entry[0]};entryY={entry[1]};'
+        st = self._edge_style(both, dashed, arrow, bold, lstyle, rounded) + f'exitX={exit[0]};exitY={exit[1]};entryX={entry[0]};entryY={entry[1]};'
         self.cells.append(f'<mxCell id="{id or self._id()}" value="{esc(label)}" style="{st}" edge="1" parent="1" source="{src}" target="{dst}">{self._geo(pos, offset, points)}</mxCell>')
     def hedge(self, src, dst, label='', **kw):
         """Left-to-right edge with the label floating 6px above the line."""
-        self.edge(src, dst, (1, .5), (0, .5), label, offset=(0, -6), lstyle='verticalAlign=bottom;', **kw)
+        self.edge(src, dst, (1, .5), (0, .5), label, **{**ABOVE, **kw})
+    def elbow(self, src, dst, y, label='', exit=(0.5, 1), entry=(0.5, 0), pos=0, offset=(0, -10), **kw):
+        """⊐-shaped edge: down from src, across at y, down into dst. The field → region arrows of a layout figure;
+        stagger y 20px per edge (125, 145, 165 …) and the label rides above its own horizontal run."""
+        xs, _ = self.at(src, *exit); xd, _ = self.at(dst, *entry)
+        self.edge(src, dst, exit, entry, label, pos=pos, offset=offset, points=[(xs, y), (xd, y)], **kw)
     def dotted(self, src, dst, exit=(0.5, 0.5), entry=(0.5, 0.5), points=None, id=None):
         """Dotted leader from a note to the thing it annotates. No arrowhead."""
         st = DOTTED + f'exitX={exit[0]};exitY={exit[1]};entryX={entry[0]};entryY={entry[1]};'
         self.cells.append(f'<mxCell id="{id or self._id()}" style="{st}" edge="1" parent="1" source="{src}" target="{dst}">{self._geo(0, (0, 0), points)}</mxCell>')
     def line(self, x1, y1, x2, y2, label='', both=False, dashed=False, arrow=True, bold=False, pos=0, offset=(0, -4),
-             points=None, lstyle='verticalAlign=bottom;', id=None):
+             points=None, lstyle='verticalAlign=bottom;', rounded=False, id=None):
         """Free edge with absolute endpoints (sequence-diagram messages, lifelines, rulers)."""
-        st = self._edge_style(both, dashed, arrow, bold, lstyle)
+        st = self._edge_style(both, dashed, arrow, bold, lstyle, rounded)
         self.cells.append(f'<mxCell id="{id or self._id()}" value="{esc(label)}" style="{st}" edge="1" parent="1">{self._geo(pos, offset, points, (x1, y1), (x2, y2))}</mxCell>')
+    def rule(self, x, y1, y2, dashed=False, width=1.5, faint=False):
+        """Vertical guide line, no arrowhead: lifeline, scale tick (faint=True → light grey), close marker (width=3)."""
+        st = (f'strokeWidth={width};' if width != 1.5 else '') + (f'strokeColor={FAINT};' if faint else '')
+        self.line(x, y1, x, y2, dashed=dashed, arrow=False, lstyle=st)
+    # ---- sequence diagrams ----
+    def seq(self, participants, cx, bottom, y=40, w=180, h=50):
+        """Participant boxes centred on cx[i] with lifelines down to bottom: participants = (label, fill)."""
+        for (p, f), c in zip(participants, cx):
+            self.box(p, c - w / 2, y, w, h, f); self.rule(c, y + h, bottom, dashed=True)
+        return cx
+    def msg(self, y, x1, x2, label='', ret=False, pos=0):
+        """Horizontal message at y between lifelines x1 → x2; ret=True dashed return. pos=±0.5 slides the label between two lifelines."""
+        self.line(x1, y, x2, y, label, dashed=ret, pos=pos, lstyle=SEQ)
     def selfcall(self, cx, y, label='', w=60, h=40):
         """Sequence-diagram self message: a square loop on lifeline cx from y to y+h, label to its right."""
         self.line(cx, y, cx, y + h, points=[(cx + w, y), (cx + w, y + h)], lstyle='rounded=0;')
         if label: self.text(label, cx + w + 10, y, 260, h, size=13, align='left')
+    def divider(self, y, x1, x2, label, w=120):
+        """Phase separator across all lifelines: dashed line with a centred grey pill."""
+        self.line(x1, y, x2, y, dashed=True, arrow=False, lstyle='')
+        return self.pill(label, (x1 + x2) / 2 - w / 2, y - 15, w, 30)
+    # ---- output ----
     def save(self, path):
         body = '\n        '.join(self.cells)
         sans, mono = FONTS[self.font]
@@ -165,6 +230,21 @@ class Diagram:
         if not os.path.exists(exe): return None
         subprocess.run([exe, '-x', '-f', 'png', '-s', '2', '-b', '20', '-o', png, drawio], check=True, capture_output=True)
         return png
+    def out(self, dir, name):
+        """Save <dir>/<name>.drawio, export <dir>/<name>.png, print the name. The delivery unit of every gen script."""
+        base = os.path.join(dir, name); self.save(base + '.drawio'); png = self.export(base + '.drawio', base + '.png')
+        print(name if png else f'{name}: draw.io not found, .drawio only (open it at https://app.diagrams.net)')
+        return png
+
+def write_index(path, title, intro, items):
+    """index.html for a multi-figure topic: items = (heading, one-paragraph caption, png filename)."""
+    body = ''.join(f'<h3>{h}</h3><p>{p}</p><img src="{png}">\n' for h, p, png in items)
+    open(path, 'w').write(f'''<!doctype html><meta charset="utf-8"><title>{title}</title>
+<style>body{{font-family:-apple-system,sans-serif;margin:24px;background:#fafafa;max-width:1700px}}h1{{margin-bottom:4px}}h3{{margin:28px 0 6px}}p{{color:#555;margin:0 0 10px;font-size:14px}}img{{width:100%;background:#fff;border:1px solid #ddd;border-radius:8px;padding:8px}}code{{font-family:Menlo,monospace;font-size:13px}}</style>
+<h1>{title}</h1>
+<p>{intro}</p>
+{body}''')
+    return path
 
 if __name__ == '__main__':  # self-check
     d = Diagram(); a = d.box('A', 0, 0, 100, 50, 'orange', sub='desc'); b = d.box('B', 0, 100, 100, 50); d.edge(a, b, label='x'); d.brace(0, 100, 80)
@@ -173,11 +253,18 @@ if __name__ == '__main__':  # self-check
     xml = open(d.save('/tmp/dio_check.drawio')).read()
     assert '<root>' in xml and 'endArrow=open' in xml and 'rotation=90' in xml and xml.count('edge="1"') == 4
     assert '&amp;lt;pid&amp;gt;' in xml and '&lt;b&gt;A&lt;/b&gt;' in xml and '&lt;i&gt;' in xml and '#FFF0F0' in xml and '#FFF8E6' in xml and 'dashPattern=1 3' in xml
-    assert 'math=' not in xml and 'Trebuchet' in xml
+    assert 'math=' not in xml and 'Trebuchet' in xml and d.at(a, .5, 1) == (50, 50)
     d = Diagram(font='avenir', math=True)
-    d.panel(0, 0, 600, 300, 'P', 'sub'); d.box('c4', 0, 0, 60, 40, shape='sq', mono=True, size=12); d.box('R', 0, 0, 100, 60, 'red', shape='cloud')
-    d.formula(r'\dfrac{a}{b}', 0, 0, 200, 40); d.tag('cg 0', 0, 0); d.bar(0, 0, 220, 22, 0.6)
+    d.panel(0, 0, 600, 300, 'P', 'sub'); c = d.cell('c4', 0, 0, 60, 40); d.box('R', 0, 0, 100, 60, 'red', shape='cloud')
+    d.formula(r'\dfrac{a}{b}', 0, 0, 200, 40); d.tag('cg 0', 0, 0); d.bar(0, 0, 220, 22, 0.6); d.ring(300, 300, 75)
+    r = d.row(100, [('magic', '0x00', 120), ('pad', '', 60, 'grey')]); d.rowlabel('Header\n24 B', 100)
+    d.elbow(r[1], c, 80, 'lbl'); d.brace(0, 180, 170, label='cap'); d.rule(10, 0, 100, faint=True); d.rule(20, 0, 100, width=3)
+    cx = d.seq([('App', 'red'), ('FS', 'blue')], [500, 740], 400); d.msg(130, cx[0], cx[1], 'read()'); d.msg(190, cx[1], cx[0], 'data', ret=True); d.divider(250, 400, 840, 'next')
     xml = open(d.save('/tmp/dio_check2.drawio')).read()
     assert 'math="1"' in xml and 'Avenir Next' in xml and 'Trebuchet' not in xml and 'Courier' not in xml and 'fontFamily=Menlo' in xml
     assert 'shape=cloud' in xml and '\\(\\dfrac{a}{b}\\)' in xml and 'fontSize=11' in xml and '&lt;b&gt;P&lt;/b&gt; · &lt;i&gt;sub&lt;/i&gt;' in xml and 'width="132"' in xml
+    assert '<mxPoint x="330" y="80"/><mxPoint x="30" y="80"/>' in xml and 'x="300" y="100"' in xml   # elbow bends at exit/entry x; row advanced 120+10
+    assert FAINT in xml and 'strokeWidth=3' in xml and 'labelBackgroundColor=#FFFFFF' in xml and xml.count('dashPattern=4 4') >= 4 and 'ellipse;html=1;dashed=1' in xml
+    assert ang('<hex>') == '&lt;hex&gt;' and len(BG_FILLS) == 8 and 'face=&quot;Courier New' in esc(Diagram.code('x'))
+    write_index('/tmp/dio_index.html', 'T', 'intro', [('h', 'p', 'x.png')]); assert '<img src="x.png">' in open('/tmp/dio_index.html').read()
     print('ok')

@@ -22,11 +22,9 @@ Sources (2026-09-22 … 23; every name is grep-able there):
 Figures with design-stage content say so in the figure ("设计"); scores / bandwidth / piece owners are example numbers.
 """
 import sys; import os; sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'scripts'))
-from dio import Diagram
-OUT = os.path.dirname(os.path.abspath(__file__)) + '/'
-def out(d, name): d.save(OUT + name + '.drawio'); Diagram.export(OUT + name + '.drawio', OUT + name + '.png'); print(name)
+from dio import Diagram, ABOVE, ang
+OUT = os.path.dirname(os.path.abspath(__file__))
 F = dict(size=13, align='left')
-LB = dict(offset=(0, -6), lstyle='verticalAlign=bottom;')
 
 # ================= 1. chunk group dedup across images (nydus → seed peer) =================
 d = Diagram(font='avenir')
@@ -39,15 +37,14 @@ gb, c10 = [], None
 for t, x, w, ready, chunks in BANDS:
     gb.append(d.group(x, 80, w, 100, t, 'blue-bg'))
     for cx, cw, ct in chunks:
-        cid = d.box(ct, cx, 115, cw, 50, 'blue' if ready else 'grey', bold=False, shape='sq', mono=True)
+        cid = d.cell(ct, cx, 115, cw, 50, 'blue' if ready else 'grey', size=14)
         if ct == 'c10': c10 = cid
 d.edge(rd, c10, label='miss', offset=(24, 0))
 
 cell = d.group(170, 235, 565, 95, '', 'yellow-bg'); d.text('fetch_size cell · 4 MiB', 180, 302, 540, 24, **F)
 PAY = [('zstd(g1)', 60, 110, 'd1'), ('zstd(g2)', 180, 160, 'd2'), ('zstd(g3)', 350, 110, 'd3'), ('zstd(g4)', 470, 140, 'd4'), ('zstd(g5)', 620, 110, 'd5'), ('zstd(g6)', 740, 160, 'd6')]
 pc = [d.box(t, x, 250, w, 50, 'blue', sub=s, shape='proc', mono=True) for t, x, w, s in PAY]
-GX = [135, 360, 595, 805, 1015, 1290]; PX = [115, 260, 405, 540, 675, 820]
-for i, (g, p) in enumerate(zip(gb, pc)): d.edge(g, p, (.5, 1), (.5, 0), points=[(GX[i], 190 + 8 * i), (PX[i], 190 + 8 * i)])
+for i, (g, p) in enumerate(zip(gb, pc)): d.elbow(g, p, 190 + 8 * i)
 d.brace(170, 735, 345, up=True)
 get = d.box('GET blob A · Range: bytes=8388608-12582911', 190, 370, 520, 60, 'green', sub='附带 d2 · d3 · d4 · d5（设计）', shape='io')
 
@@ -56,7 +53,7 @@ d.group(60, 565, 1400, 100, 'task A = blob A · piece 4 MiB', 'green-bg')
 d.box('piece 0', 70, 600, 350, 50, 'green', shape='sq'); d.box('piece 1', 430, 600, 350, 50, 'green', shape='sq')
 p2 = d.frame(790, 600, 360, 50, ''); d.box('piece 3', 1160, 600, 290, 50, 'green', shape='sq')
 slots = [d.box(f'zstd(g{i})', 795 + (i - 2) * 90, 605, 80, 40, 'blue', bold=False, shape='proc', mono=True, size=12) for i in range(2, 6)]
-d.edge(get, p2, (.5, 1), (.4, 0), 'piece 2 未下载 → 逐 chunk group 查表', points=[(450, 475), (934, 475)], offset=(0, -10))
+d.elbow(get, p2, 475, 'piece 2 未下载 → 逐 chunk group 查表', (.5, 1), (.4, 0))
 d.edge(p2, get, (.15, 0), (.1, 1), '206 · 拼好的 4 MiB', dashed=True, points=[(844, 495), (250, 495)], offset=(0, 12))
 
 tbl = d.group(60, 700, 1400, 110, 'Digest ↔ Chunk 表 · 全局 · 跨镜像 · digest → (task, offset, len)', 'yellow-bg')
@@ -64,19 +61,19 @@ cols = [d.box(t, 793 + i * 90, 735, 84, 60, 'orange', sub=s, shape='hex', mono=T
 for s, c in zip(slots, cols): d.edge(s, c)
 
 d.group(60, 860, 810, 100, 'task B · 镜像 Y 的 blob', 'green-bg')
-for i in range(4): d.box(f'piece {i}', 70 + i * 200, 895, 190, 50, 'green', bold=False, shape='sq', style='align=left;spacingLeft=8;')
-hb2 = d.box('d2', 395, 895, 50, 50, 'blue', bold=False, shape='sq', mono=True); hb3 = d.box('d3', 595, 895, 50, 50, 'blue', bold=False, shape='sq', mono=True)
+for i in range(4): d.box(f'piece {i}', 70 + i * 200, 895, 190, 50, 'green', bold=False, shape='sq', align='left')
+hb2 = d.cell('d2', 395, 895, 50, 50, 'blue', size=14); hb3 = d.cell('d3', 595, 895, 50, 50, 'blue', size=14)
 reg = d.box('Registry · origin', 890, 880, 250, 80, 'red', sub='只回源 d4', shape='cloud')
 d.group(1150, 860, 310, 100, 'task C · 镜像 Z 的 blob', 'green-bg')
-d.box('piece 0', 1160, 895, 150, 50, 'green', bold=False, shape='sq', style='align=left;spacingLeft=8;')
+d.box('piece 0', 1160, 895, 150, 50, 'green', bold=False, shape='sq', align='left')
 bmc = d.box('blob meta', 1320, 892, 130, 56, 'orange', sub='末 piece 尾部', shape='doc')
-hc5 = d.box('d5', 1225, 895, 50, 50, 'blue', bold=False, shape='sq', mono=True)
-d.edge(cols[0], hb2, (.5, 1), (.5, 0), points=[(835, 815), (420, 815)])
-d.edge(cols[1], hb3, (.5, 1), (.5, 0), points=[(925, 830), (620, 830)])
-d.edge(cols[3], hc5, (.5, 1), (.5, 0), points=[(1105, 815), (1250, 815)])
+hc5 = d.cell('d5', 1225, 895, 50, 50, 'blue', size=14)
+d.elbow(cols[0], hb2, 815)
+d.elbow(cols[1], hb3, 830)
+d.elbow(cols[3], hc5, 815)
 d.edge(cols[2], reg, (.5, 1), (.5, 0), label='回源', offset=(-30, 0))
 d.edge(bmc, tbl, (.5, 0), (.9464, 1), '下载完成 → 建表', dashed=True, offset=(-60, 0))
-out(d, 'nydus-dragonfly-dedup')
+d.out(OUT, 'nydus-dragonfly-dedup')
 
 # ================= 2. one request end to end: nydus → Request SDK hashring → seed peer storage =================
 d = Diagram(font='avenir')
@@ -91,7 +88,7 @@ g8 = None
 for t, x, w, ready, cgs in WIN:
     d.group(x, 110, w, 85, t, 'yellow-bg')
     for cx, cw, ct in cgs:
-        cid = d.box(ct, cx, 140, cw, 40, 'blue' if ready else 'grey', bold=False, shape='sq', mono=True)
+        cid = d.cell(ct, cx, 140, cw, 40, 'blue' if ready else 'grey', size=14)
         if ct == 'g8': g8 = cid
 d.edge(rd, g8, label='miss', offset=(24, 0))
 d.brace(510, 790, 230, up=True)
@@ -100,7 +97,7 @@ get = d.box('GET blob A · Range: bytes=8388608-12582911', 390, 290, 520, 60, 'g
 d.group(1060, 180, 500, 290, 'Dragonfly Request SDK · 同进程', 'green-bg')
 tid = d.box('task_id', 1070, 295, 150, 50, 'orange', sub='digest(blob A)')
 d.hedge(get, tid, '同 task_id')
-d.box('', 1330, 245, 150, 150, 'green-bg', style='shape=ellipse;perimeter=ellipsePerimeter;dashed=1;dashPattern=4 4;fixDash=1;')   # the hashring
+d.ring(1405, 320, 75)                                            # the hashring
 d.text('hashring · 512 vnode / host', 1290, 448, 230, 20, size=12)
 rn = d.box('seed peer C', 1360, 230, 90, 30, 'green-strong', bold=False)
 d.box('seed peer A', 1435, 305, 90, 30, 'green', bold=False)
@@ -115,16 +112,16 @@ d.panel(40, 580, 1060, 600, 'Seed Peer B · 副本 1')
 d.group(60, 630, 940, 100, 'task A · 副本 1', 'green-bg')
 d.box('piece 0', 70, 665, 440, 50, 'green', sub='finished · 8 MiB', shape='sq')
 p1 = d.frame(530, 665, 460, 50, '')
-d.box('fetch_size 2 · g6–g8', 540, 670, 210, 40, 'grey', bold=False, shape='sq', mono=True, size=12)
-d.box('fetch_size 3 · g9–g10', 760, 670, 220, 40, 'grey', bold=False, shape='sq', mono=True, size=12)
+d.cell('fetch_size 2 · g6–g8', 540, 670, 210, 40, 'grey')
+d.cell('fetch_size 3 · g9–g10', 760, 670, 220, 40, 'grey')
 
 d.group(60, 770, 940, 250, 'dfdaemon storage · /var/lib/dragonfly', 'yellow-bg')
 hx = [d.box(t, x, 830, 140, 60, 'orange', sub=s_, shape='hex', mono=True) for t, x, s_ in [('piece 0', 220, 'finished ✓'), ('piece 1', 690, 'finished ∅')]]
 d.text('content · content/tasks/{task_id} · 按 offset 写', 70, 905, 400, 24, **F)
-seg = [d.box(t, x, 935, w, 50, f, bold=False, shape='sq', mono=True) for t, x, w, f in [('0–8 MiB', 70, 440, 'blue'), ('8–16 MiB · 空洞', 530, 460, 'grey')]]
+seg = [d.cell(t, x, 935, w, 50, f, size=14) for t, x, w, f in [('0–8 MiB', 70, 440, 'blue'), ('8–16 MiB · 空洞', 530, 460, 'grey')]]
 reg = d.box('Registry · origin', 700, 1070, 250, 80, 'red', sub='回源整个 piece 1 · 8 MiB', shape='cloud')
 
-d.edge(rep, p1, (.3, 1), (.5, 0), 'fetch_size 2 · 本次抽到 B', points=[(1107, 540), (760, 540)], offset=(0, -10))
+d.elbow(rep, p1, 540, 'fetch_size 2 · 本次抽到 B', (.3, 1), (.5, 0))
 d.edge(p1, get, (.1, 0), (.115, 1), '', dashed=True, points=[(576, 555), (450, 555)])
 d.edge(p1, hx[1], (.5, 1), (.5, 0), 'is_finished ?', offset=(60, 0))
 d.edge(hx[1], reg, (1, .5), (1, .5), '∅ → 回源', points=[(1040, 860), (1040, 1110)], pos=-0.6, offset=(0, -10))
@@ -135,7 +132,7 @@ gc = d.group(1160, 630, 400, 100, 'task A · 副本 2', 'green-bg')
 d.box('piece 0', 1170, 665, 190, 50, 'green', sub='finished · 8 MiB', shape='sq')
 d.box('piece 1', 1370, 665, 180, 50, 'grey', bold=False, shape='sq')
 d.edge(rep, gc, (1, .5), (.9625, 0), '', dashed=True, points=[(1545, 420)])
-out(d, 'nydus-dragonfly-arch')
+d.out(OUT, 'nydus-dragonfly-arch')
 
 # ================= 3. errors and retries as attempt budgets (one cell = one attempt) =================
 d = Diagram(font='avenir')
@@ -151,8 +148,7 @@ def lane(y, title, fill, trigger, slots, braces):
     for label, sub, f, w, shape in slots:
         cells.append(d.box(label, x, y + 55, w, 50, f, sub=sub, shape=shape)); x += w + 10
     d.hedge(get, cells[0])
-    for x1, x2, cap in braces:
-        d.brace(x1, x2, y + 130, up=True); d.text(cap, x1, y + 148, x2 - x1, 24, **F)
+    for x1, x2, cap in braces: d.brace(x1, x2, y + 130, label=cap)
     return cells
 lane(70, 'prefetch', 'yellow-bg', 'mount 完成',
      [('seed peer A', '① 429', 'blue', 120, 'sq'), ('等 6h–12h', '', 'yellow', 150, 'oval'), ('seed peer A', '② 超时', 'blue', 120, 'sq'),
@@ -163,12 +159,12 @@ lane(295, 'on-demand', 'blue-bg', 'read() · chunk group miss',
       ('origin', '③ 取槽', 'red', 120, 'sq'), ('origin', '④ 退避', 'red', 120, 'sq'), ('origin', '⑤ 退避', 'red', 120, 'sq'),
       ('origin', '⑥ 退避', 'red', 120, 'sq'), ('EIO', '', 'grey', 60, 'sq')],
      [(590, 870, 'max_retries 1 · 立即换 peer'), (880, 1390, 'http.max_retries 3 · 每次先取 1 QPS 槽 · 指数退避')])
-out(d, 'nydus-dragonfly-retry')
+d.out(OUT, 'nydus-dragonfly-retry')
 
 # ================= 4. preheat: four paths (OCI / nydus × seed peer / peer) =================
 d = Diagram(font='avenir')
 d.panel(40, 20, 1540, 290, '预热组件')
-reg = d.box('Registry', 60, 60, 200, 80, 'red', sub='blobs/sha256:&lt;digest&gt;', shape='cloud')
+reg = d.box('Registry', 60, 60, 200, 80, 'red', sub=ang('blobs/sha256:<digest>'), shape='cloud')
 g_oci = d.group(300, 60, 420, 100, 'OCI 镜像', 'blue-bg')
 d.box('config', 310, 95, 90, 50, 'grey', bold=False, shape='sq')
 for i in range(3): d.box(f'layer {i + 1}', 410 + i * 100, 95, 90, 50, 'blue', bold=False, shape='sq')
@@ -187,7 +183,7 @@ d.edge(req, g_scope, (.5, 1), (1, .5), '按 scope 选 host', points=[(1400, 242)
 d.panel(40, 360, 1540, 500, 'Dragonfly 集群')
 g_seed = d.group(300, 420, 400, 100, 'seed peer', 'green-bg')
 for i in range(3): d.box(f'piece {i}', 310 + i * 130, 455, 120, 50, 'green', bold=False, shape='sq')
-d.frame(780, 400, 780, 420, ''); d.text('Node', 790, 406, 300, 26, bold=True, size=14, align='left')
+d.panel(780, 400, 780, 420, 'Node', size=14)                      # nested panel: smaller title
 nyd = d.box('nydus', 820, 570, 140, 50, 'blue', shape='sq')
 ncache = d.box('nydus cache', 990, 565, 150, 60, 'blue', shape='cyl')
 ct = d.box('containerd', 1180, 570, 140, 50, 'red', shape='sq')
@@ -204,7 +200,7 @@ d.edge(ct, ccache, (1, .5), (0, .5))
 d.edge(ct, g_task, (0.3, 1), (0.5743, 0), offset=(-45, 0))
 d.edge(g_task, ct, (0.6543, 0), (0.7, 1), dashed=True, offset=(45, 0))
 d.edge(g_seed, g_task, (.5, 1), (0, .5), points=[(500, 750)])
-out(d, 'dragonfly-preheat')
+d.out(OUT, 'dragonfly-preheat')
 
 # ================= 5. two-level scheduling: Scheduler picks parents, the peer weights them (MathJax formulas) =================
 d = Diagram(font='avenir', math=True)
@@ -216,7 +212,7 @@ SCORES = ['0.83', '0.71', '0.66', '0.52', '0.48', '0.45', '0.40', '0.37', '0.33'
 fills = {'B': CB, 'C': CC, 'D': CD}
 for i, (ch, s) in enumerate(zip('BCDEFGHIJKLMNOP', SCORES)):
     d.box(f'Peer {ch}', 335 + i * 82, 120, 72, 60, fills.get(ch, 'grey'), sub=s, mono=True)
-d.edge(pa, pool, (1, .5), (0, 0.5385), '① Register', **LB)
+d.edge(pa, pool, (1, .5), (0, 0.5385), '① Register', **ABOVE)
 d.brace(335, 581, 228, up=False)
 d.text('TotalScore', 700, 228, 200, 22, bold=True, size=13, align='left')
 d.formula(r'\mathit{TotalScore} = 0.6\,\mathit{LoadQuality} + 0.2\,\mathit{IDC} + 0.1\,\mathit{Location} + 0.1\,\mathit{HostType}', 700, 252, 860, 44)
@@ -236,8 +232,8 @@ Y = 700
 d.panel(40, Y, 1540, 430, 'Peer A · 节点调度')
 pa2 = d.box('Peer A', 60, Y + 100, 130, 60, 'grey')
 par = d.group(320, Y + 60, 740, 170, 'top 3 parents', 'green-bg')
-d.line(458, 240, 125, Y + 100, '② Schedule Parents · B C D', points=[(458, Y - 15), (125, Y - 15)], pos=-0.3, offset=(112, 0), lstyle='rounded=1;arcSize=20;')
-d.edge(pa2, par, (1, .5), (0, 0.4118), 'tx / max_tx', both=True, **LB)
+d.line(458, 240, 125, Y + 100, '② Schedule Parents · B C D', points=[(458, Y - 15), (125, Y - 15)], pos=-0.3, offset=(112, 0), rounded=True, lstyle='')
+d.edge(pa2, par, (1, .5), (0, 0.4118), 'tx / max_tx', both=True, **ABOVE)
 for name, x, f, w, idle in [('Peer B', 335, CB, 6, 6), ('Peer C', 580, CC, 3, 3), ('Peer D', 825, CD, 1, 0.5)]:
     d.box(name, x, Y + 100, 220, 56, f, sub=f'w = {w}')
     d.bar(x, Y + 170, 220, 22, idle / 10, f)
@@ -249,8 +245,8 @@ for i, p in enumerate(SEQ):
     d.box(f'piece {i}', 75 + i * 92, Y + 310, 84, 56, fills[p], bold=False, sub=p)
 for cx, dy, ti, lab in [(445, 256, 5, '③ Download Piece'), (690, 248, 7, ''), (935, 240, 9, '')]:
     tx = 75 + ti * 92 + 42
-    d.line(cx, Y + 230, tx, Y + 310, lab, points=[(cx, Y + dy), (tx, Y + dy)], pos=0.2, offset=(0, -8), lstyle='rounded=1;arcSize=20;verticalAlign=bottom;')
-out(d, 'dragonfly-arch')
+    d.line(cx, Y + 230, tx, Y + 310, lab, points=[(cx, Y + dy), (tx, Y + dy)], pos=0.2, offset=(0, -8), rounded=True)
+d.out(OUT, 'dragonfly-arch')
 
 # ================= 6. containerd ↔ nydus-snapshotter: lifecycle chevrons, API chips, what nydus does with FUSE / storage =================
 d = Diagram(font='avenir')
@@ -287,7 +283,7 @@ q = d.rhombus('看 label', 85, 540, 180, 70)
 d.edge(prep_ex, q, (.5, 1), (.5, 0))
 skip = d.pill('跳过下载', 100, 680, 150, 40, 'grey')
 d.edge(q, skip, (.5, 1), (.5, 0), 'blob 层', offset=(30, 0))
-boot = d.box('image.boot', 500, 540, 160, 66, 'orange', sub='snapshots/&lt;id&gt;/fs/image/', shape='doc')
+boot = d.box('image.boot', 500, 540, 160, 66, 'orange', sub=ang('snapshots/<id>/fs/image/'), shape='doc')
 d.hedge(q, boot, 'bootstrap 层 · containerd 解包')
 nd = d.frame(560, 680, 320, 110, 'nydusd · FUSE', solid=True)
 d.box('mnt', 570, 718, 145, 55, 'blue-strong', sub='挂载点')
@@ -297,45 +293,44 @@ d.edge(act(prep_c, 'prep_c', 590, '拉起 nydusd', '读 image.boot · 挂 FUSE')
 reg = d.box('Registry', 320, 690, 170, 90, 'red', sub='按需拉 blob', shape='cloud')
 d.edge(nd, reg, (0, .5), (1, .5))
 g_ov = d.group(920, 680, 260, 110, '', 'green-bg')
-for i, t in enumerate(['lowerdir = mnt', 'upperdir = snapshots/&lt;cid&gt;/fs', 'workdir  = snapshots/&lt;cid&gt;/work']):
+for i, t in enumerate(['lowerdir = mnt', ang('upperdir = snapshots/<cid>/fs'), ang('workdir  = snapshots/<cid>/work')]):
     d.box(t, 930, 688 + i * 28, 240, 24, 'green', bold=False, shape='sq', mono=True, size=11)
 d.text('rootfs · overlay', 930, 770, 240, 18, size=11, align='left')
 d.edge(nd, g_ov, (1, .5), (0, .5))
 d.edge(act(mounts, 'mounts', 560, '确认 FUSE 已挂好', '返回 overlay 挂载参数'), g_ov, (.5, 1), ((X['mounts'] - 920) / 260, 0))
 d.edge(act(cleanup, 'cleanup', 560, '卸 FUSE · 杀 nydusd', '删孤儿目录 · 删没人用的 blob'), nd, (.5, 1), (1, .8), points=[(1720, 840), (900, 840), (900, 768)], lstyle='curved=1;')
-out(d, 'containerd-nydus-snapshotter')
+d.out(OUT, 'containerd-nydus-snapshotter')
 
 # ================= 7. FUSE failover: one connection, two nydusd generations, crash recovery =================
 d = Diagram(font='avenir')
-C = dict(bold=False, shape='sq', mono=True, size=12)            # identifier cells: fd · req · slot
 P = dict(bold=False, shape='proc', mono=True, size=12)          # fd handles
 d.panel(40, 20, 1540, 240, '内核 · 一条 FUSE 连接 · /mnt/img')
 cat = d.pill('cat /mnt/img/bin/sh', 60, 70, 240, 40, 'red')
 d.group(60, 130, 360, 90, 'open files · fh 不变', 'red-bg')
-d.box('fd 3 · fh 0', 70, 165, 160, 40, 'red', **C); d.box('fd 4 · fh 0', 250, 165, 160, 40, 'red', **C)
+d.cell('fd 3 · fh 0', 70, 165, 160, 40, 'red'); d.cell('fd 4 · fh 0', 250, 165, 160, 40, 'red')
 q = d.group(460, 120, 700, 100, 'fuse_conn 输入队列 · pause 期间只排队不丢', 'cyan-bg')
-reqs = [d.box(t, x, 155, w, 50, 'grey', **C) for t, x, w in [('req 41 READ', 470, 120), ('req 42 LOOKUP', 600, 130), ('req 43 READDIR', 740, 140), ('req 44 GETATTR', 890, 140), ('…', 1040, 60)]]
+reqs = [d.cell(t, x, 155, w, 50, 'grey') for t, x, w in [('req 41 READ', 470, 120), ('req 42 LOOKUP', 600, 130), ('req 43 READDIR', 740, 140), ('req 44 GETATTR', 890, 140), ('…', 1040, 60)]]
 d.edge(cat, reqs[0], (1, .5), (.5, 0), 'read()', points=[(530, 90)], offset=(0, -10))
 
 d.panel(40, 320, 1540, 360, '两代 nydusd · 同一 fd 7 · 同一 mount')
 old = d.group(60, 365, 440, 290, 'nydusd N · 前代', 'blue-bg')
-fs0 = d.box('ErofsFs', 80, 405, 190, 50, 'blue', sub='ino = nid + 1', **C)
+fs0 = d.cell('ErofsFs', 80, 405, 190, 50, 'blue', sub='ino = nid + 1')
 fd7 = d.box('fd 7 · /dev/fuse', 300, 405, 180, 50, 'blue', sub='dup · 交出', **P)
 d.box('Relinquished', 80, 480, 150, 50, 'orange', bold=False, shape='hex', mono=True, size=12)
-d.box('workers · fd 8 fd 9', 250, 480, 230, 50, 'blue', sub='pause → exit', **C)
+d.cell('workers · fd 8 fd 9', 250, 480, 230, 50, 'blue', sub='pause → exit')
 j0 = d.box('fd 11 · journal', 300, 555, 180, 50, 'yellow', **P)
 d.text('✕ SIGKILL', 80, 570, 120, 20, size=12, align='left')
 new = d.group(1060, 365, 440, 290, 'nydusd N+1 · 后继', 'blue-bg')
 fd7n = d.box('fd 7 · /dev/fuse', 1080, 405, 180, 50, 'blue', sub='from_initialized_fd', **P)
-fs1 = d.box('ErofsFs', 1290, 405, 190, 50, 'blue', sub='同一镜像重建', **C)
-d.box('workers · fd 13 fd 14', 1080, 480, 230, 50, 'blue', sub='park → resume', **C)
+fs1 = d.cell('ErofsFs', 1290, 405, 190, 50, 'blue', sub='同一镜像重建')
+d.cell('workers · fd 13 fd 14', 1080, 480, 230, 50, 'blue', sub='park → resume')
 d.box('Serving', 1330, 480, 150, 50, 'orange', bold=False, shape='hex', mono=True, size=12)
 j1 = d.box('fd 11 · journal', 1080, 555, 180, 50, 'yellow', **P)
 xfer = d.box('Session Transfer', 540, 405, 480, 50, 'green', sub='SCM_RIGHTS [fd 7, fd 11] + metadata · session_id · init flags', shape='io')
 ctl = d.box('control.sock · HANDOFF_BEGIN → READY → COMMITTED', 540, 480, 480, 50, 'green', bold=False, shape='io')
 jr = d.group(560, 540, 440, 80, 'fd 11 · InflightJournal · memfd · 已读未回复的 unique', 'yellow-bg')
 for t, x, w, f in [('slot 0 · 39', 570, 100, 'orange'), ('slot 1 · 40', 680, 100, 'orange'), ('slot 2 · ∅', 790, 100, 'grey'), ('…', 900, 60, 'grey')]:
-    d.box(t, x, 572, w, 36, f, **C)
+    d.cell(t, x, 572, w, 36, f)
 d.hedge(fd7, xfer); d.hedge(xfer, fd7n)
 d.edge(old, ctl, (1, 0.483), (0, .5), both=True); d.edge(ctl, new, (1, .5), (0, 0.483), both=True)
 d.hedge(j0, jr); d.edge(j1, jr, (0, .5), (1, .5))
@@ -352,4 +347,4 @@ d.edge(rec, new, (0.45, 0), (.5, 1), dashed=True)
 img = d.box('EROFS 镜像', 300, 960, 1000, 60, 'blue', sub='只读 · nid ↔ ino 由镜像决定', shape='cyl')
 d.edge(fs0, img, (0, .5), (0, .5), 'ErofsFs::new', points=[(70, 430), (70, 990)], pos=0.6, offset=(0, -12))
 d.edge(fs1, img, (1, .5), (1, .5), 'ErofsFs::new', points=[(1570, 430), (1570, 990)], pos=0.6, offset=(0, -12))
-out(d, 'nydus-fuse-failover')
+d.out(OUT, 'nydus-fuse-failover')
